@@ -2,12 +2,46 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import csv
+
+x = []
+y = []
+z = []
 
 inputfile = "Y2_4KA.csv"
-x = np.arange(0,20,0.01)
-y = np.arange(0,3.14,0.01)
-df = pd.read_csv(inputfile)
-x = df.to_numpy()
+x_index = 0
+y_index = 0
+f = open(inputfile, 'r')
+rdr = csv.reader(f)
+
+#df = pd.read_csv(inputfile, header=None)
+
+for line in rdr:
+    for indentation in line:
+        x.append(x_index)
+        y.append(y_index)
+        z.append(float(indentation))
+        x_index = x_index + 1
+    x_index = 0
+    y_index = y_index + 1
+
+x = np.array(x)
+x.shape = (630000,1)
+y = np.array(y)
+y.shape = (630000,1)
+z = np.array(z)
+z.shape = (630000,1)
+
+'''
+for j in np.arange(0 ,31.4, 0.1):
+    for i in np.arange(0, 20, 0.01):
+        x.append(i)
+        y.append(j)
+        z.append( df )
+        x_index =+ 1
+    y_index = + 1
+'''
+
 
 '''
 # Create the data.
@@ -41,9 +75,9 @@ ax.set_zlabel("z", size = 14, color = "r")
 #ax.set_yticks([-5.0, -2.5, 0.0, 2.5, 5.0])
 
 # -5～5
-x = 10 * np.random.rand(100, 1) - 5
-y = 10 * np.random.rand(100, 1) - 5
-z = 10 * np.random.rand(100, 1) - 5
+#x = 10 * np.random.rand(100, 1) - 5
+#y = 10 * np.random.rand(100, 1) - 5
+#z = 10 * np.random.rand(100, 1) - 5
 
 #
 ax.scatter(x, y, z, s = 0.1, c = "blue")

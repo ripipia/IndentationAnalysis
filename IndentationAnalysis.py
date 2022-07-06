@@ -50,6 +50,7 @@ o3d.visualization.draw(pcd, raw_mode=True)
 
 IDTpointsList = []
 
+#csv파일 불러와서 list로 저장하기
 inputfile = "Y2_4KA.csv"
 x_index = 0
 y_index = 0
@@ -58,18 +59,46 @@ rdr = csv.reader(f)
 
 #df = pd.read_csv(inputfile, header=None)
 
+range_x = (950, 1050)
+range_y = (100, 200)
+
 for line in rdr:
     for indentation in line:
-        IDTpoint = [x_index, y_index/315*1000, float(indentation)*2000]
-        IDTpointsList.append(IDTpoint)
+        if range_x[0] < x_index and x_index < range_x[1] and range_y[0] < y_index and y_index < range_y[1]:
+            IDTpoint = [x_index * 10, y_index/315*1000, float(indentation)*1000]
+            IDTpointsList.append(IDTpoint)
         x_index = x_index + 1
     x_index = 0
     y_index = y_index + 1
 
+#List를 np로 저장하기
 pc_array = np.array(IDTpointsList, dtype=np.float32)
+
+'''
+a1 = np.array([[1,2,3,4],[5,6,7,8],[9,0,1,2],[3,4,5,6]])
+a1 = np.delete(a1, 0, axis = 0)
+print(a1)
+'''
+
+
+#np를 pcd 형태로 변환하기
 pcd = o3d.geometry.PointCloud()
 pcd.points = o3d.utility.Vector3dVector(pc_array)
+
+#노멀 계산
+pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+
+#가시화
 o3d.visualization.draw(pcd, raw_mode=True)
+o3d.visualization.draw_geometries([pcd], point_show_normal = True)
+
+#pcd를 메쉬화
+'''
+alpha = 100
+mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(pcd,alpha)
+mesh.compute_vertex_normals()
+o3d.visualization.draw_geometries([mesh], mesh_show_back_face = True)
+'''
 
 '''
 x = []

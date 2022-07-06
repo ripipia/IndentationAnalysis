@@ -59,8 +59,14 @@ rdr = csv.reader(f)
 
 #df = pd.read_csv(inputfile, header=None)
 
+#아웃라이어 찾기
+
+#아웃라이어 제외하고 평면 계산하기
+
+#평면의 기울기만큼 데이터 보정
 range_x = (950, 1050)
 range_y = (100, 200)
+
 
 for line in rdr:
     for indentation in line:

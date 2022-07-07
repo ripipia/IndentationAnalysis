@@ -67,14 +67,16 @@ rdr = csv.reader(f)
 
 #기준설정 후 기준보다 작은 점들의 부피 계산
 
-range_x = (950, 1050)
-range_y = (100, 200)
+#range_x = (950, 1050)
+#range_y = (100, 200)
+range_x = (0, 2001)
+range_y = (0, 315)
 
 
 for line in rdr:
     for indentation in line:
         if range_x[0] < x_index and x_index < range_x[1] and range_y[0] < y_index and y_index < range_y[1]:
-            IDTpoint = [x_index * 10, y_index/315*1000, float(indentation)*1000]
+            IDTpoint = [x_index * 1, y_index/315*1000, float(indentation)*1000]
             IDTpointsList.append(IDTpoint)
         x_index = x_index + 1
     x_index = 0
@@ -98,8 +100,9 @@ pcd.points = o3d.utility.Vector3dVector(pc_array)
 pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
 
 #가시화
-o3d.visualization.draw(pcd, raw_mode=True)
-o3d.visualization.draw_geometries([pcd], point_show_normal = True)
+#o3d.visualization.draw(pcd, raw_mode=True)
+#o3d.visualization.draw_geometries([pcd], point_show_normal = True)
+o3d.visualization.draw_geometries([pcd])
 
 #pcd를 메쉬화
 '''

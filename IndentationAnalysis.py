@@ -57,16 +57,6 @@ y_index = 0
 f = open(inputfile, 'r')
 rdr = csv.reader(f)
 
-#df = pd.read_csv(inputfile, header=None)
-
-#아웃라이어 찾기
-
-#아웃라이어 제외하고 평면 계산하기
-
-#평면의 기울기만큼 데이터 보정
-
-#기준설정 후 기준보다 작은 점들의 부피 계산
-
 #range_x = (950, 1050)
 #range_y = (100, 200)
 range_x = (0, 2001)
@@ -91,7 +81,6 @@ a1 = np.delete(a1, 0, axis = 0)
 print(a1)
 '''
 
-
 #np를 pcd 형태로 변환하기
 pcd = o3d.geometry.PointCloud()
 pcd.points = o3d.utility.Vector3dVector(pc_array)
@@ -102,7 +91,31 @@ pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.
 #가시화
 #o3d.visualization.draw(pcd, raw_mode=True)
 #o3d.visualization.draw_geometries([pcd], point_show_normal = True)
-o3d.visualization.draw_geometries([pcd])
+#o3d.visualization.draw_geometries([pcd])
+
+#다운 샘플링(outlier를 찾기위한 시간을 단축)
+uni_down_pcd = pcd.uniform_down_sample(10)
+#o3d.visualization.draw_geometries([uni_down_pcd])
+
+#아웃라이어 찾기
+def display_inlier_outlier(cloud, ind):
+    inlier_cloud = cloud.select_by_index(ind)
+    outlier_cloud = cloud.select_by_index(ind, invert=True)
+
+    print("Showing outliers (red) and inliers (gray): ")
+    outlier_cloud.paint_uniform_color([1, 0, 0])
+    inlier_cloud.paint_uniform_color([0.8, 0.8, 0.8])
+    o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
+
+cl, ind = uni_down_pcd.remove_statistical_outlier(nb_neighbors=1000,std_ratio=0.10)
+display_inlier_outlier(uni_down_pcd, ind)
+
+#아웃라이어 제외하고 평면 계산하기
+
+#평면의 기울기만큼 데이터 보정
+
+#기준설정 후 기준보다 작은 점들의 부피 계산
+
 
 #pcd를 메쉬화
 '''

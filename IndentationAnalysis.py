@@ -1,56 +1,15 @@
-import pandas as pd
 import numpy as np
 import open3d as o3d
+import csv
+from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import csv
+import pandas as pd
 
-#포인트클라우드 및 노멀 가시화
-'''
-print("Load a ply point cloud, print it, and render it")
-ply_point_cloud = o3d.data.PLYPointCloud()
-pcd = o3d.io.read_point_cloud(ply_point_cloud.path)
-pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
-o3d.visualization.draw_geometries([pcd],
-                                  zoom=0.3412,
-                                  front=[0.4257, -0.2125, -0.8795],
-                                  lookat=[2.6172, 2.0475, 1.532],
-                                  up=[-0.0694, -0.9768, 0.2024])
-'''
 
-#점을 메쉬화 하는 방법
-'''
-verts = np.array(
-    [[-1, 0, 0], [0, 1, 0], [1, 0, 0], [0, -1, 0], [0, 0, 1]],
-    dtype=np.float64,
-)
-triangles = np.array([[0, 1, 3], [1, 2, 3], [1, 3, 4]])
-mesh = o3d.geometry.TriangleMesh()
-mesh.vertices = o3d.utility.Vector3dVector(verts)
-mesh.triangles = o3d.utility.Vector3iVector(triangles)
-mesh.compute_vertex_normals()
-mesh.rotate(
-    mesh.get_rotation_matrix_from_xyz((np.pi / 4, 0, np.pi / 4)),
-    center=mesh.get_center(),
-)
-o3d.visualization.draw(mesh, raw_mode=True)
-'''
-
-#점을 포인트클라우드로 변환한뒤 가시화하는 방법
-'''
-pcd = o3d.geometry.PointCloud()
-np_points = np.random.rand(100, 3)
-
-# From numpy to Open3D
-pcd.points = o3d.utility.Vector3dVector(np_points)
-# From Open3D to numpy
-np_points = np.asarray(pcd.points)
-o3d.visualization.draw(pcd, raw_mode=True)
-'''
-
+##csv파일 불러와서 list로 저장하기
 IDTpointsList = []
 
-#csv파일 불러와서 list로 저장하기
 inputfile = "Y2_4KA.csv"
 x_index = 0
 y_index = 0
@@ -72,32 +31,21 @@ for line in rdr:
     x_index = 0
     y_index = y_index + 1
 
-#List를 np로 저장하기
+##List를 np로 저장하기
 pc_array = np.array(IDTpointsList, dtype=np.float32)
 
-'''
-a1 = np.array([[1,2,3,4],[5,6,7,8],[9,0,1,2],[3,4,5,6]])
-a1 = np.delete(a1, 0, axis = 0)
-print(a1)
-'''
-
-#np를 pcd 형태로 변환하기
+##np를 pcd 형태로 변환하기
 pcd = o3d.geometry.PointCloud()
 pcd.points = o3d.utility.Vector3dVector(pc_array)
 
-#노멀 계산
+##노멀 계산
 pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
 
-#가시화
-#o3d.visualization.draw(pcd, raw_mode=True)
-#o3d.visualization.draw_geometries([pcd], point_show_normal = True)
-#o3d.visualization.draw_geometries([pcd])
-
-#다운 샘플링(outlier를 찾기위한 시간을 단축)
+##다운 샘플링(outlier를 찾기위한 시간을 단축)
 uni_down_pcd = pcd.uniform_down_sample(10)
-#o3d.visualization.draw_geometries([uni_down_pcd])
 
-#아웃라이어 찾기
+
+##아웃라이어 찾기
 def display_inlier_outlier(cloud, ind):
     inlier_cloud = cloud.select_by_index(ind)
     outlier_cloud = cloud.select_by_index(ind, invert=True)
@@ -107,10 +55,29 @@ def display_inlier_outlier(cloud, ind):
     inlier_cloud.paint_uniform_color([0.8, 0.8, 0.8])
     o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
 
-cl, ind = uni_down_pcd.remove_statistical_outlier(nb_neighbors=1000,std_ratio=0.10)
+inlier, ind = uni_down_pcd.remove_statistical_outlier(nb_neighbors=1000,std_ratio=0.10)
 display_inlier_outlier(uni_down_pcd, ind)
 
-#아웃라이어 제외하고 평면 계산하기
+##아웃라이어(압흔)을 제외한 point cloud, 즉 철판 표면을 np로 저장
+inlier_numpy = np.asarray(inlier.points)
+trainX, trainY = np.split(inlier_numpy,[2], axis = 1)
+
+
+##np로 저장된 즉 철판 표면 데이터를 선형회귀분석하여 평면을 찾음
+line_fitter = LinearRegression()
+line_fitter.fit(trainX, trainY)
+
+##찾은 평면을 가시화하기 위해 평면위의 점 계산
+results = line_fitter.predict(trainX)
+points_on_plane = np.concatenate((trainX, results), axis=1)
+
+##평면위의 점과 철판 표면 데이터를 병합
+plane_and_inlier = np.concatenate((inlier_numpy, points_on_plane), axis=0)
+
+##np를 pcd 형태로 변환하고 가시화
+pai = o3d.geometry.PointCloud()
+pai.points = o3d.utility.Vector3dVector(plane_and_inlier)
+o3d.visualization.draw_geometries([pai])
 
 #평면의 기울기만큼 데이터 보정
 
@@ -177,3 +144,39 @@ ax.scatter(x, y, z, s = 0.1, c = "blue")
 
 plt.show()
 '''
+
+##포인트클라우드 및 노멀 가시화
+'''
+print("Load a ply point cloud, print it, and render it")
+ply_point_cloud = o3d.data.PLYPointCloud()
+pcd = o3d.io.read_point_cloud(ply_point_cloud.path)
+pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+o3d.visualization.draw_geometries([pcd],
+                                  zoom=0.3412,
+                                  front=[0.4257, -0.2125, -0.8795],
+                                  lookat=[2.6172, 2.0475, 1.532],
+                                  up=[-0.0694, -0.9768, 0.2024])
+'''
+
+##점을 메쉬화 하는 방법
+'''
+verts = np.array(
+    [[-1, 0, 0], [0, 1, 0], [1, 0, 0], [0, -1, 0], [0, 0, 1]],
+    dtype=np.float64,
+)
+triangles = np.array([[0, 1, 3], [1, 2, 3], [1, 3, 4]])
+mesh = o3d.geometry.TriangleMesh()
+mesh.vertices = o3d.utility.Vector3dVector(verts)
+mesh.triangles = o3d.utility.Vector3iVector(triangles)
+mesh.compute_vertex_normals()
+mesh.rotate(
+    mesh.get_rotation_matrix_from_xyz((np.pi / 4, 0, np.pi / 4)),
+    center=mesh.get_center(),
+)
+o3d.visualization.draw(mesh, raw_mode=True)
+'''
+
+##가시화
+#o3d.visualization.draw(pcd, raw_mode=True)
+#o3d.visualization.draw_geometries([pcd], point_show_normal = True)
+#o3d.visualization.draw_geometries([pcd])

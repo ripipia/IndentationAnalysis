@@ -35,14 +35,16 @@ for line in rdr:
 pc_array = np.array(IDTpointsList, dtype=np.float32)
 
 ##np를 pcd 형태로 변환하기
-pcd = o3d.geometry.PointCloud()
-pcd.points = o3d.utility.Vector3dVector(pc_array)
+pcd_all_points_raw = o3d.geometry.PointCloud()
+pcd_all_points_raw.points = o3d.utility.Vector3dVector(pc_array)
+o3d.visualization.draw_geometries([pcd_all_points_raw])
 
 ##노멀 계산
-pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+pcd_all_points_raw.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
 
 ##다운 샘플링(outlier를 찾기위한 시간을 단축)
-uni_down_pcd = pcd.uniform_down_sample(10)
+pcd_all_points_down_sample = pcd_all_points_raw.uniform_down_sample(10)
+o3d.visualization.draw_geometries([pcd_all_points_down_sample])
 
 
 ##아웃라이어 찾기
@@ -55,29 +57,37 @@ def display_inlier_outlier(cloud, ind):
     inlier_cloud.paint_uniform_color([0.8, 0.8, 0.8])
     o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
 
-inlier, ind = uni_down_pcd.remove_statistical_outlier(nb_neighbors=1000,std_ratio=0.10)
-display_inlier_outlier(uni_down_pcd, ind)
+pcd_inlier, ind = pcd_all_points_down_sample.remove_statistical_outlier(nb_neighbors=1000, std_ratio=0.10)
+display_inlier_outlier(pcd_all_points_down_sample, ind)
+
+##아웃라이어만 가시화
+o3d.visualization.draw_geometries([pcd_inlier])
 
 ##아웃라이어(압흔)을 제외한 point cloud, 즉 철판 표면을 np로 저장
-inlier_numpy = np.asarray(inlier.points)
-trainX, trainY = np.split(inlier_numpy,[2], axis = 1)
+np_inlier_points = np.asarray(pcd_inlier.points)
+np_inlier_XY, np_inlier_Y = np.split(np_inlier_points, [2], axis = 1)
 
 
 ##np로 저장된 즉 철판 표면 데이터를 선형회귀분석하여 평면을 찾음
 line_fitter = LinearRegression()
-line_fitter.fit(trainX, trainY)
+line_fitter.fit(np_inlier_XY, np_inlier_Y)
 
 ##찾은 평면을 가시화하기 위해 평면위의 점 계산
-results = line_fitter.predict(trainX)
-points_on_plane = np.concatenate((trainX, results), axis=1)
+np_on_plane_Y = line_fitter.predict(np_inlier_XY)
+np_on_plane_points = np.concatenate((np_inlier_XY, np_on_plane_Y), axis=1)
+
+##평면위의 점을 pcd형태로 변환하고 가시화
+pcd_on_plane_points = o3d.geometry.PointCloud()
+pcd_on_plane_points.points = o3d.utility.Vector3dVector(np_on_plane_points)
+o3d.visualization.draw_geometries([pcd_on_plane_points])
 
 ##평면위의 점과 철판 표면 데이터를 병합
-plane_and_inlier = np.concatenate((inlier_numpy, points_on_plane), axis=0)
+np_inlier_and_plane = np.concatenate((np_inlier_points, np_on_plane_points), axis=0)
 
-##np를 pcd 형태로 변환하고 가시화
-pai = o3d.geometry.PointCloud()
-pai.points = o3d.utility.Vector3dVector(plane_and_inlier)
-o3d.visualization.draw_geometries([pai])
+##병합한 데이터를 pcd 형태로 변환하고 가시화
+pcd_inlier_and_plane = o3d.geometry.PointCloud()
+pcd_inlier_and_plane.points = o3d.utility.Vector3dVector(np_inlier_and_plane)
+o3d.visualization.draw_geometries([pcd_inlier_and_plane])
 
 #평면의 기울기만큼 데이터 보정
 

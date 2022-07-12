@@ -2,6 +2,7 @@ import numpy as np
 import open3d as o3d
 import csv
 from sklearn.linear_model import LinearRegression
+import copy
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
@@ -46,6 +47,17 @@ pcd_all_points_raw.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamH
 pcd_all_points_down_sample = pcd_all_points_raw.uniform_down_sample(10)
 o3d.visualization.draw_geometries([pcd_all_points_down_sample])
 
+##RANSAC을 이용한 평면 찾기
+plane_model, inliers = pcd_all_points_down_sample.segment_plane(distance_threshold=40.0,
+                                         ransac_n=3,
+                                         num_iterations=1000)
+[a, b, c, d] = plane_model
+print(f"Plane equation: {a}x + {b}y + {c}z + {d} = 0")
+
+inlier_cloud = pcd_all_points_down_sample.select_by_index(inliers)
+inlier_cloud.paint_uniform_color([1.0, 0, 0])
+outlier_cloud = pcd_all_points_down_sample.select_by_index(inliers, invert=True)
+o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
 
 ##아웃라이어 찾기
 def display_inlier_outlier(cloud, ind):
@@ -67,10 +79,10 @@ o3d.visualization.draw_geometries([pcd_inlier])
 np_inlier_points = np.asarray(pcd_inlier.points)
 np_inlier_XY, np_inlier_Y = np.split(np_inlier_points, [2], axis = 1)
 
-
 ##np로 저장된 즉 철판 표면 데이터를 선형회귀분석하여 평면을 찾음
 line_fitter = LinearRegression()
 line_fitter.fit(np_inlier_XY, np_inlier_Y)
+print(line_fitter.coef_, line_fitter.intercept_)
 
 ##찾은 평면을 가시화하기 위해 평면위의 점 계산
 np_on_plane_Y = line_fitter.predict(np_inlier_XY)
@@ -90,6 +102,10 @@ pcd_inlier_and_plane.points = o3d.utility.Vector3dVector(np_inlier_and_plane)
 o3d.visualization.draw_geometries([pcd_inlier_and_plane])
 
 #평면의 기울기만큼 데이터 보정
+pcd_all_points_down_sample_r = copy.deepcopy(pcd_all_points_down_sample)
+R = pcd_all_points_down_sample_r.get_rotation_matrix_from_xyz((np.pi / 2, 0, np.pi / 4))
+pcd_all_points_down_sample_r.rotate(R, pcd_all_points_down_sample.get_center() )
+o3d.visualization.draw_geometries([pcd_all_points_down_sample, pcd_all_points_down_sample_r])
 
 #기준설정 후 기준보다 작은 점들의 부피 계산
 

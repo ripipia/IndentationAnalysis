@@ -12,7 +12,8 @@ import pandas as pd
 ##csv파일 불러와서 list로 저장하기
 IDTpointsList = []
 
-inputfile = "Y2_4KA.csv"
+#inputfile = "Y2_4KA.csv"
+inputfile = "H101_7.0KA_X.csv"
 x_index = 0
 y_index = 0
 f = open(inputfile, 'r')
@@ -21,14 +22,17 @@ rdr = csv.reader(f)
 #range_x = (950, 1050)
 #range_y = (100, 200)
 range_x = (0, 2001)
-range_y = (0, 315)
+range_y = (0, 400)
 
 
 for line in rdr:
     for indentation in line:
         if range_x[0] < x_index and x_index < range_x[1] and range_y[0] < y_index and y_index < range_y[1]:
-            IDTpoint = [x_index * 1, y_index/315*1000, float(indentation)*1000]
-            IDTpointsList.append(IDTpoint)
+            if math.fabs(float(indentation) + 100) < 0.01:
+                print(x_index, y_index, "element is outlier.")
+            else:
+                IDTpoint = [x_index * 1, y_index / 315 * 1000, float(indentation) * 1000]
+                IDTpointsList.append(IDTpoint)
         x_index = x_index + 1
     x_index = 0
     y_index = y_index + 1
@@ -71,7 +75,7 @@ mag_rotation_axis = np.sqrt(rotation_axis.dot(rotation_axis))
 rotation_angle = math.asin( mag_rotation_axis / (mag_normal_vector*mag_z_vector) )
 rotation_axis = rotation_axis / mag_rotation_axis * rotation_angle
 
-
+'''
 ##아웃라이어 찾기
 def display_inlier_outlier(cloud, ind):
     inlier_cloud = cloud.select_by_index(ind)
@@ -97,8 +101,6 @@ line_fitter = LinearRegression()
 line_fitter.fit(np_inlier_XY, np_inlier_Y)
 print(line_fitter.coef_, line_fitter.intercept_)
 
-
-
 ##찾은 평면을 가시화하기 위해 평면위의 점 계산
 np_on_plane_Y = line_fitter.predict(np_inlier_XY)
 np_on_plane_points = np.concatenate((np_inlier_XY, np_on_plane_Y), axis=1)
@@ -115,7 +117,7 @@ np_inlier_and_plane = np.concatenate((np_inlier_points, np_on_plane_points), axi
 pcd_inlier_and_plane = o3d.geometry.PointCloud()
 pcd_inlier_and_plane.points = o3d.utility.Vector3dVector(np_inlier_and_plane)
 o3d.visualization.draw_geometries([pcd_inlier_and_plane])
-
+'''
 
 #평면의 기울기만큼 데이터 보정
 pcd_all_points_down_sample_r = copy.deepcopy(pcd_all_points_down_sample)
@@ -123,19 +125,20 @@ R = pcd_all_points_down_sample_r.get_rotation_matrix_from_axis_angle(rotation_ax
 pcd_all_points_down_sample_r.rotate(R, pcd_all_points_down_sample.get_center() )
 o3d.visualization.draw_geometries([pcd_all_points_down_sample, pcd_all_points_down_sample_r])
 
-##RANSAC을 이용한 평면 찾기
+##RANSAC을 이용한 평면 찾기(검산)
 plane_model, inliers = pcd_all_points_down_sample_r.segment_plane(distance_threshold=40.0,
                                          ransac_n=3,
                                          num_iterations=1000)
 [a, b, c, d] = plane_model
 print(f"Plane equation: {a}x + {b}y + {c}z + {d} = 0")
 
-inlier_cloud = pcd_all_points_down_sample.select_by_index(inliers)
+inlier_cloud = pcd_all_points_down_sample_r.select_by_index(inliers)
 inlier_cloud.paint_uniform_color([1.0, 0, 0])
-outlier_cloud = pcd_all_points_down_sample.select_by_index(inliers, invert=True)
+outlier_cloud = pcd_all_points_down_sample_r.select_by_index(inliers, invert=True)
 o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
 
 #기준설정 후 기준보다 작은 점들의 부피 계산
+
 
 
 #pcd를 메쉬화

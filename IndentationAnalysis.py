@@ -1,10 +1,11 @@
 import numpy as np
 import open3d as o3d
 import csv
-from sklearn.linear_model import LinearRegression
 import copy
 import math
 import matplotlib.pyplot as plt
+from scipy.signal import savgol_filter
+from sklearn.linear_model import LinearRegression
 from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
 
@@ -16,26 +17,34 @@ IDTpointsList = []
 inputfile = "H101_7.0KA_X.csv"
 x_index = 0
 y_index = 0
+row_number = 0
+column_number = 0
 f = open(inputfile, 'r')
 rdr = csv.reader(f)
+
 
 #range_x = (950, 1050)
 #range_y = (100, 200)
 range_x = (0, 2001)
 range_y = (0, 400)
 
-
+last_indentation = 0;
 for line in rdr:
+    x_index = 0
     for indentation in line:
-        if range_x[0] < x_index and x_index < range_x[1] and range_y[0] < y_index and y_index < range_y[1]:
+        if range_x[0] <= x_index and x_index <= range_x[1] and range_y[0] <= y_index and y_index <= range_y[1]:
             if math.fabs(float(indentation) + 100) < 0.01:
                 print(x_index, y_index, "element is outlier.")
+                IDTpoint = [x_index * 1, y_index / 315 * 1000, float(last_indentation) * 1000]
+                IDTpointsList.append(IDTpoint)
             else:
                 IDTpoint = [x_index * 1, y_index / 315 * 1000, float(indentation) * 1000]
                 IDTpointsList.append(IDTpoint)
+                last_indentation = indentation
         x_index = x_index + 1
-    x_index = 0
     y_index = y_index + 1
+column_number = x_index
+row_number = y_index
 
 ##List를 np로 저장하기
 pc_array = np.array(IDTpointsList, dtype=np.float32)
@@ -119,7 +128,7 @@ pcd_inlier_and_plane.points = o3d.utility.Vector3dVector(np_inlier_and_plane)
 o3d.visualization.draw_geometries([pcd_inlier_and_plane])
 '''
 
-#평면의 기울기만큼 데이터 보정
+#평면의 기울기만큼 데이터 보정(다운샘플링한 점들만 대상)
 pcd_all_points_down_sample_r = copy.deepcopy(pcd_all_points_down_sample)
 R = pcd_all_points_down_sample_r.get_rotation_matrix_from_axis_angle(rotation_axis)
 pcd_all_points_down_sample_r.rotate(R, pcd_all_points_down_sample.get_center() )
@@ -137,8 +146,41 @@ inlier_cloud.paint_uniform_color([1.0, 0, 0])
 outlier_cloud = pcd_all_points_down_sample_r.select_by_index(inliers, invert=True)
 o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
 
-#기준설정 후 기준보다 작은 점들의 부피 계산
 
+#평면의 기울기만큼 데이터 보정(모든 점 대상)
+pcd_all_points_r = copy.deepcopy(pcd_all_points_raw)
+R = pcd_all_points_r.get_rotation_matrix_from_axis_angle(rotation_axis)
+pcd_all_points_r.rotate(R, pcd_all_points_raw.get_center() )
+o3d.visualization.draw_geometries([pcd_all_points_raw, pcd_all_points_r])
+
+#기준설정 후 기준보다 작은 점들의 부피 계산
+np_all_points_r = np.asarray(pcd_all_points_r.points)
+np_all_points_r_X = np_all_points_r[:,0]
+np_all_points_r_Y = np_all_points_r[:,1]
+np_all_points_r_Z = np_all_points_r[:,2]
+np_all_points_r_X=np_all_points_r_X.reshape(row_number, column_number)
+np_all_points_r_Y=np_all_points_r_Y.reshape(row_number, column_number)
+np_all_points_r_Z=np_all_points_r_Z.reshape(row_number, column_number)
+index_max = np_all_points_r_Z.argmax()
+
+def calc_row_column(_index, _row_number, _column_number):
+    row, column = divmod(_index, _column_number)
+    return row, column
+
+row, column = calc_row_column(index_max, row_number, column_number)
+np_center_line = np_all_points_r_Z[row, :]
+np_center_line_smoothed = savgol_filter(np_center_line, 100, 3)  # window size 51, polynomial order 3
+
+dif_np_center_line = np.delete(np_center_line_smoothed,0) - np.delete(np_center_line_smoothed,column_number-1)
+
+plt.plot(np_center_line)
+plt.show()
+
+plt.plot(np_center_line_smoothed)
+plt.show()
+
+plt.plot(dif_np_center_line)
+plt.show()
 
 
 #pcd를 메쉬화

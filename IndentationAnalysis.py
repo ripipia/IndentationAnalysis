@@ -153,7 +153,7 @@ R = pcd_all_points_r.get_rotation_matrix_from_axis_angle(rotation_axis)
 pcd_all_points_r.rotate(R, pcd_all_points_raw.get_center() )
 o3d.visualization.draw_geometries([pcd_all_points_raw, pcd_all_points_r])
 
-#기준설정 후 기준보다 작은 점들의 부피 계산
+#point cloud를 X, Y, Z좌표별로 2차원 numpy 배열로 변환
 np_all_points_r = np.asarray(pcd_all_points_r.points)
 np_all_points_r_X = np_all_points_r[:,0]
 np_all_points_r_Y = np_all_points_r[:,1]
@@ -161,6 +161,8 @@ np_all_points_r_Z = np_all_points_r[:,2]
 np_all_points_r_X=np_all_points_r_X.reshape(row_number, column_number)
 np_all_points_r_Y=np_all_points_r_Y.reshape(row_number, column_number)
 np_all_points_r_Z=np_all_points_r_Z.reshape(row_number, column_number)
+
+#최대 Z값을 가진 행, 열을 찾기
 index_max = np_all_points_r_Z.argmax()
 
 def calc_row_column(_index, _row_number, _column_number):
@@ -168,10 +170,15 @@ def calc_row_column(_index, _row_number, _column_number):
     return row, column
 
 row, column = calc_row_column(index_max, row_number, column_number)
+
+#최대 Z값을 가진 열을 추출
 np_center_line = np_all_points_r_Z[row, :]
+
+#최개 Z값을 가진 열의 기울기를 계산하기 위하여 점 100개를 묶어 smoothing
 np_center_line_smoothed = savgol_filter(np_center_line, 100, 3)  # window size 51, polynomial order 3
 
-dif_np_center_line = np.delete(np_center_line_smoothed,0) - np.delete(np_center_line_smoothed,column_number-1)
+#최개 Z값을 가진 열의 기울기를 계산
+diff_np_center_line = np.delete(np_center_line_smoothed,0) - np.delete(np_center_line_smoothed,column_number-1)
 
 plt.plot(np_center_line)
 plt.show()
@@ -179,8 +186,65 @@ plt.show()
 plt.plot(np_center_line_smoothed)
 plt.show()
 
-plt.plot(dif_np_center_line)
+plt.plot(diff_np_center_line)
 plt.show()
+
+#기울기의 전체 평균값과, 최대 기울기의 중간값을 계산(alpha가 파라메터) = 압흔의 시작부분을 찾는 기준
+alpha = 0.5
+mean_of_diff = np.mean(diff_np_center_line)
+max_of_diff = np.max(diff_np_center_line)
+min_of_diff = np.min(diff_np_center_line)
+mid_of_diff_positive = (1 - alpha) * mean_of_diff + alpha * max_of_diff
+mid_of_diff_negative = (1 - alpha) * mean_of_diff + alpha * min_of_diff
+
+
+#압흔이 시작하는 지점의 Z좌표를 찾기.
+indentation_start_index = 0
+indentation_end_index = 0
+number_of_mid_of_diff_positive = 0
+number_of_mid_of_diff_negative = 0
+for index in range(len(diff_np_center_line)-1):
+    if diff_np_center_line[index] < mid_of_diff_positive and diff_np_center_line[index + 1] > mid_of_diff_positive:
+        indentation_start_index = index
+        number_of_mid_of_diff_positive = number_of_mid_of_diff_positive + 1
+    if diff_np_center_line[index] > mid_of_diff_positive and diff_np_center_line[index + 1] < mid_of_diff_positive:
+        number_of_mid_of_diff_positive = number_of_mid_of_diff_positive + 1
+
+    if diff_np_center_line[index] > mid_of_diff_negative and diff_np_center_line[index + 1] < mid_of_diff_negative:
+        number_of_mid_of_diff_negative = number_of_mid_of_diff_negative + 1
+    if diff_np_center_line[index] < mid_of_diff_negative and diff_np_center_line[index + 1] > mid_of_diff_negative:
+        indentation_end_index = index
+        number_of_mid_of_diff_negative = number_of_mid_of_diff_negative + 1
+
+indentation_start_Z = np_center_line[indentation_start_index]
+indentation_end_Z = np_center_line[indentation_end_index]
+
+if number_of_mid_of_diff_positive != 2 or number_of_mid_of_diff_negative != 2:
+    print("기울기 설정을 다시 하세요.")
+
+
+plt.plot(diff_np_center_line)
+plt.axhline(mid_of_diff_positive, color='lightgray', linestyle='--')
+plt.axhline(mid_of_diff_negative, color='gray', linestyle='solid')
+plt.show()
+
+plt.plot(np_center_line)
+plt.axhline(indentation_start_Z, color='lightgray', linestyle='--')
+plt.axhline(indentation_end_Z, color='gray', linestyle='solid')
+plt.show()
+
+plt.plot(np_center_line_smoothed)
+plt.axhline(indentation_start_Z, color='lightgray', linestyle='--')
+plt.axhline(indentation_end_Z, color='gray', linestyle='solid')
+plt.show()
+
+
+
+a = 0
+
+
+
+
 
 
 #pcd를 메쉬화

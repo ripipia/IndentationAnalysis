@@ -9,12 +9,13 @@ from sklearn.linear_model import LinearRegression
 from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
 
-
 ##csv파일 불러와서 list로 저장하기
 IDTpointsList = []
 
 #inputfile = "Y2_4KA.csv"
-inputfile = "H101_7.0KA_X.csv"
+inputfile = "Y2_2.5KA.csv"
+#inputfile = "H101_7.0KA_X.csv"
+#inputfile = "H127_5.5KA_x.csv" #센서값 오류
 x_index = 0
 y_index = 0
 row_number = 0
@@ -22,11 +23,16 @@ column_number = 0
 f = open(inputfile, 'r')
 rdr = csv.reader(f)
 
-
 #range_x = (950, 1050)
 #range_y = (100, 200)
 range_x = (0, 2001)
 range_y = (0, 400)
+
+#X, Y 간격을 각각 1, 1000/315, 1000으로 가정
+space_X = 1.0
+space_Y = 1000.0/315.0
+#Z좌표를 1000배
+space_Z = 1000.0
 
 last_indentation = 0;
 for line in rdr:
@@ -35,10 +41,10 @@ for line in rdr:
         if range_x[0] <= x_index and x_index <= range_x[1] and range_y[0] <= y_index and y_index <= range_y[1]:
             if math.fabs(float(indentation) + 100) < 0.01:
                 print(x_index, y_index, "element is outlier.")
-                IDTpoint = [x_index * 1, y_index / 315 * 1000, float(last_indentation) * 1000]
+                IDTpoint = [x_index * space_X, y_index * space_Y, float(last_indentation) * space_Z]
                 IDTpointsList.append(IDTpoint)
             else:
-                IDTpoint = [x_index * 1, y_index / 315 * 1000, float(indentation) * 1000]
+                IDTpoint = [x_index * space_X, y_index * space_Y, float(indentation) * space_Z]
                 IDTpointsList.append(IDTpoint)
                 last_indentation = indentation
         x_index = x_index + 1
@@ -198,7 +204,7 @@ mid_of_diff_positive = (1 - alpha) * mean_of_diff + alpha * max_of_diff
 mid_of_diff_negative = (1 - alpha) * mean_of_diff + alpha * min_of_diff
 
 
-#압흔이 시작하는 지점의 Z좌표를 찾기.
+#압흔이 시작하고 끝나는 지점의 포인트를 찾기.
 indentation_start_index = 0
 indentation_end_index = 0
 number_of_mid_of_diff_positive = 0
@@ -219,10 +225,19 @@ for index in range(len(diff_np_center_line)-1):
 indentation_start_Z = np_center_line[indentation_start_index]
 indentation_end_Z = np_center_line[indentation_end_index]
 
+indentation_start_point = np.asarray(
+    (np_all_points_r_X[row, indentation_start_index],
+    np_all_points_r_Y[row, indentation_start_index],
+    np_all_points_r_Z[row, indentation_start_index]))
+indentation_end_point = np.asarray(
+    (np_all_points_r_X[row, indentation_end_index],
+    np_all_points_r_Y[row, indentation_end_index],
+    np_all_points_r_Z[row, indentation_end_index]))
+
 if number_of_mid_of_diff_positive != 2 or number_of_mid_of_diff_negative != 2:
     print("기울기 설정을 다시 하세요.")
 
-
+#압흔이 시작하고 끝나는 지점 가시화.
 plt.plot(diff_np_center_line)
 plt.axhline(mid_of_diff_positive, color='lightgray', linestyle='--')
 plt.axhline(mid_of_diff_negative, color='gray', linestyle='solid')
@@ -238,6 +253,40 @@ plt.axhline(indentation_start_Z, color='lightgray', linestyle='--')
 plt.axhline(indentation_end_Z, color='gray', linestyle='solid')
 plt.show()
 
+#압흔의 반지름 밑 센터 찾기(현재는 사용안함)
+radius = np.linalg.norm(indentation_end_point - indentation_start_point)
+center = (indentation_end_point + indentation_start_point)/2
+
+#압흔을 포함하는 가로세로 여유 사이즈 결정
+margin_X = 50.0
+margin_Y = 50.0
+
+margin_index_X = int(margin_X/space_X)
+margin_index_Y = int((radius+margin_Y) / space_Y)
+
+#가로세로 여유 사이즈를 포함하는 분석범위(인덱스) 계산
+analysis_region_X = (indentation_start_index - margin_index_X, indentation_end_index + margin_index_X)
+analysis_region_Y = (row - margin_index_Y , row + margin_index_Y )
+
+#분석범위만 추출
+np_analysis_region_X = np_all_points_r_X[analysis_region_Y[0]:analysis_region_Y[1], analysis_region_X[0]:analysis_region_X[1]]
+np_analysis_region_Y = np_all_points_r_Y[analysis_region_Y[0]:analysis_region_Y[1], analysis_region_X[0]:analysis_region_X[1]]
+np_analysis_region_Z = np_all_points_r_Z[analysis_region_Y[0]:analysis_region_Y[1], analysis_region_X[0]:analysis_region_X[1]]
+
+np_analysis_region_X = np_analysis_region_X.reshape((analysis_region_X[1]-analysis_region_X[0])*(analysis_region_Y[1]-analysis_region_Y[0]), 1)
+np_analysis_region_Y = np_analysis_region_Y.reshape((analysis_region_X[1]-analysis_region_X[0])*(analysis_region_Y[1]-analysis_region_Y[0]), 1)
+np_analysis_region_Z = np_analysis_region_Z.reshape((analysis_region_X[1]-analysis_region_X[0])*(analysis_region_Y[1]-analysis_region_Y[0]), 1)
+np_analysis_region_points = np.concatenate([np_analysis_region_X, np_analysis_region_Y, np_analysis_region_Z], axis=1)
+
+pcd_analysis_region_points = o3d.geometry.PointCloud()
+pcd_analysis_region_points.points = o3d.utility.Vector3dVector(np_analysis_region_points)
+o3d.visualization.draw_geometries([pcd_analysis_region_points])
+
+plt.scatter(np_analysis_region_X, np_analysis_region_Y, s=0.1, c = "black")
+plt.show()
+
+
+#압흔이 시작된 점
 
 
 a = 0

@@ -60,9 +60,6 @@ pcd_all_points_raw = o3d.geometry.PointCloud()
 pcd_all_points_raw.points = o3d.utility.Vector3dVector(pc_array)
 o3d.visualization.draw_geometries([pcd_all_points_raw])
 
-##노멀 계산
-pcd_all_points_raw.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
-
 ##다운 샘플링(outlier를 찾기위한 시간을 단축)
 pcd_all_points_down_sample = pcd_all_points_raw.uniform_down_sample(10)
 o3d.visualization.draw_geometries([pcd_all_points_down_sample])
@@ -152,12 +149,66 @@ inlier_cloud.paint_uniform_color([1.0, 0, 0])
 outlier_cloud = pcd_all_points_down_sample_r.select_by_index(inliers, invert=True)
 o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
 
+##회전변환 된 다운 샘플링의 노멀 계산
+pcd_all_points_down_sample_r.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=100, max_nn=30))
+o3d.visualization.draw_geometries([pcd_all_points_down_sample_r], point_show_normal = True)
+np_all_points_down_sample_r_normals = np.asarray(pcd_all_points_down_sample_r.normals)
+
+##회전변환 된 다운 샘플링의 point cloud를 X, Y, Z_diff 각각 2차원 numpy 배열로 변환
+np_all_points_down_sample_r = np.asarray(pcd_all_points_down_sample_r.points)
+np_all_points_down_sample_r_X = np_all_points_down_sample_r[:,0]
+np_all_points_down_sample_r_Y = np_all_points_down_sample_r[:,1]
+np_all_points_down_sample_r_normals_Z = np.abs(np_all_points_down_sample_r_normals[:,2])
+np_all_points_down_sample_r_X=np_all_points_down_sample_r_X.flatten()
+np_all_points_down_sample_r_Y=np_all_points_down_sample_r_Y.flatten()
+np_all_points_down_sample_r_normals_Z=np_all_points_down_sample_r_normals_Z.flatten()
+
+plt.scatter(np_all_points_down_sample_r_X, np_all_points_down_sample_r_Y, s=0.1, c =np_all_points_down_sample_r_normals_Z, cmap='coolwarm')
+plt.show()
+
+##normal vector중 가장 작은 z축 크기(기울기가 가장 급한 값)를 추출
+min_Z_diff = np.max(np_all_points_down_sample_r_normals_Z)
+min_Z_diff = np.min(np_all_points_down_sample_r_normals_Z)
+
+##가장작은 z축 크기와 가장 큰 z축크기(1) 사이의 중간 기울기보다 작은 z값을 가지는 범위를 추출
+##즉, 가장 큰 기울기의 중간 기울기보다 기울기가 더 큰 부분의 범위를 추출
+alpha = 0.7
+temp = np_all_points_down_sample_r_normals_Z < ((min_Z_diff * alpha + 1.0 * (1-alpha)))
+temp_X = np_all_points_down_sample_r_X[temp]
+temp_Y = np_all_points_down_sample_r_Y[temp]
+min_X = np.min(temp_X)
+max_X = np.max(temp_X)
+min_Y = np.min(temp_Y)
+max_Y = np.max(temp_Y)
+
+##위 범위의 bounding volume을 생성하고, 해당 볼륨 내의 point cloud만 crop
+epsilon = 50
+z_min = 0
+z_max = 100000000
+boundary = o3d.visualization.SelectionPolygonVolume()
+boundary.orthogonal_axis = "Z"
+boundary_min_X = min_X - epsilon
+boundary_max_X = max_X + epsilon
+boundary_min_Y = min_Y - epsilon
+boundary_max_Y = max_Y + epsilon
+polygon = np.asarray([[boundary_min_X, boundary_min_Y, 0], [boundary_max_X, boundary_min_Y, 0], [boundary_max_X, boundary_max_Y, 0], [boundary_min_X, boundary_max_Y, 0]])
+boundary.bounding_polygon = o3d.utility.Vector3dVector(polygon)
+boundary.axis_max = z_max
+boundary.axis_min = z_min
+pcd_croped_points_down_sample_r = boundary.crop_point_cloud(pcd_all_points_down_sample_r)
+o3d.visualization.draw_geometries([pcd_croped_points_down_sample_r])
 
 #평면의 기울기만큼 데이터 보정(모든 점 대상)
 pcd_all_points_r = copy.deepcopy(pcd_all_points_raw)
 R = pcd_all_points_r.get_rotation_matrix_from_axis_angle(rotation_axis)
 pcd_all_points_r.rotate(R, pcd_all_points_raw.get_center() )
 o3d.visualization.draw_geometries([pcd_all_points_raw, pcd_all_points_r])
+
+##볼륨 내의 point cloud만 crop(모든 점 대상)
+pcd_croped_all_points_r = boundary.crop_point_cloud(pcd_all_points_r)
+o3d.visualization.draw_geometries([pcd_croped_all_points_r])
+pcd_croped_all_points_r.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=100, max_nn=30))
+o3d.visualization.draw_geometries([pcd_croped_all_points_r], point_show_normal = True)
 
 #point cloud를 X, Y, Z좌표별로 2차원 numpy 배열로 변환
 np_all_points_r = np.asarray(pcd_all_points_r.points)
@@ -367,7 +418,8 @@ o3d.visualization.draw_geometries([pcd],
                                   zoom=0.3412,
                                   front=[0.4257, -0.2125, -0.8795],
                                   lookat=[2.6172, 2.0475, 1.532],
-                                  up=[-0.0694, -0.9768, 0.2024])
+                                  up=[-0.0694, -0.9768, 0.2024],
+                                  , point_show_normal = True)
 '''
 
 ##점을 메쉬화 하는 방법

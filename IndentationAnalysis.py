@@ -29,17 +29,18 @@ range_x = (0, 2001)
 range_y = (0, 400)
 
 #X, Y 간격을 각각 1, 1000/315, 1000으로 가정
-'''
+
 space_X = 1.0
 space_Y = 1000.0/315.0
 #Z좌표를 500배
-space_Z = 500.0
+space_Z = 1000.0
 '''
+#평면찾는 알고리즘, 노멀찾는 알고리즘 파라메터 변경해야 함
 space_X = 0.02
 space_Y = 20.0/315.0
 #Z좌표를 10배
 space_Z = 10.0
-
+'''
 
 last_indentation = 0;
 for line in rdr:

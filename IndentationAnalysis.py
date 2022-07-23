@@ -29,10 +29,17 @@ range_x = (0, 2001)
 range_y = (0, 400)
 
 #X, Y 간격을 각각 1, 1000/315, 1000으로 가정
+'''
 space_X = 1.0
 space_Y = 1000.0/315.0
-#Z좌표를 1000배
-space_Z = 1000.0
+#Z좌표를 500배
+space_Z = 500.0
+'''
+space_X = 0.02
+space_Y = 20.0/315.0
+#Z좌표를 10배
+space_Z = 10.0
+
 
 last_indentation = 0;
 for line in rdr:
@@ -182,7 +189,7 @@ min_Y = np.min(temp_Y)
 max_Y = np.max(temp_Y)
 
 ##위 범위의 bounding volume을 생성하고, 해당 볼륨 내의 point cloud만 crop
-epsilon = 50
+epsilon = space_X * 50
 z_min = 0
 z_max = 100000000
 boundary = o3d.visualization.SelectionPolygonVolume()
@@ -209,6 +216,25 @@ pcd_croped_all_points_r = boundary.crop_point_cloud(pcd_all_points_r)
 o3d.visualization.draw_geometries([pcd_croped_all_points_r])
 pcd_croped_all_points_r.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=100, max_nn=30))
 o3d.visualization.draw_geometries([pcd_croped_all_points_r], point_show_normal = True)
+
+'''
+with o3d.utility.VerbosityContextManager(
+        o3d.utility.VerbosityLevel.Debug) as cm:
+    mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+        pcd_croped_all_points_r, depth=9)
+print(mesh)
+o3d.visualization.draw_geometries([mesh])
+'''
+
+radii = [0.005, 0.01, 0.02, 0.04]
+rec_mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+    pcd_croped_all_points_r, o3d.utility.DoubleVector(radii))
+o3d.visualization.draw_geometries([pcd_croped_all_points_r, rec_mesh])
+
+radii = [0.05, 0.1, 0.2, 0.4]
+rec_mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+    pcd_croped_points_down_sample_r, o3d.utility.DoubleVector(radii))
+o3d.visualization.draw_geometries([pcd_croped_points_down_sample_r, rec_mesh])
 
 #point cloud를 X, Y, Z좌표별로 2차원 numpy 배열로 변환
 np_all_points_r = np.asarray(pcd_all_points_r.points)
